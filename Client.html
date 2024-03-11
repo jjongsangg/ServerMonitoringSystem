@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Monitoring System</title>
+    <style>
+        table, canvas {
+            border-radius: 5px;
+        }
+        .wrap {
+            display: flex;flex-wrap: wrap;
+            height: 100%;
+        }
+        table.half {
+            flex: 0 0 calc(50% - 8px);            
+        }
+        table {
+            width: 100vw;
+            border: 1px solid black;
+            border-spacing: 0px;
+            margin: 4px;
+            box-shadow: 2px 2px 2px 0px black;
+        }
+        .t_right {
+            text-align: right;
+        }
+        .t_center {
+            text-align: center;
+        }
+        td {
+            margin: 0;
+            padding: 4px;
+            border-right: 1px solid black;
+        }
+        tr:nth-child(even) {
+            font-size: 16px;
+            font-weight: 800;
+            background-color: aliceblue;
+            text-align: center;
+        }
+        td.cat {
+            font-size: 24px;
+            font-weight: 800;
+        }
+        canvas {
+            width: 100%;
+            height: 200px;
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <table>
+            <tr>
+                <td>
+                    <b>CONNECTION :</b> <span id="conn">DISCONNECTED</span>
+                </td>
+                <td>
+                    <b>TIME :</b> <span id="time">00:00:00</span>
+                </td>
+            </tr>
+        </table>
+        <table>
+            <tr>
+                <td colspan="4" class="cat t_center">SPECIFICATION</td>
+            </tr>
+            <tr>
+                <td>CPU_CORES</td>
+                <td>HDD_SIZE</td>
+                <td>HDD_USED</td>
+                <td>MEMORY_SIZE</td>
+            </tr>
+            <tr>
+                <td>
+                    <div id="cpu_cores" class="t_center">
+                    </div>
+                </td>
+                <td>
+                    <div id="total_disk" class="t_center">
+                    </div>
+                </td>
+                <td>
+                    <div id="used_disk" class="t_center">
+                    </div>
+                </td>
+                <td>
+                    <div id="total_mem" class="t_center">
+                    </div>
+                </td>
+            </tr>
+        </table>
+        <table class="half">
+            <tr>
+                <td colspan="2" class="cat t_center">CPU / MEMORY USAGE</td>
+            </tr>
+            <tr>
+                <td>CPU_USAGE</td>
+                <td>MEMORY_USAGE</td>
+            </tr>
+            <tr>
+                <td>
+                    <canvas id="graph_usage_cpu">
+                    </canvas>
+                    <div id="cpu_per" class="t_center">
+                    </div>    
+                </td>
+                <td>
+                    <canvas id="graph_usage_mem">
+                    </canvas>
+                    <div id="used_mem" class="t_center">
+                    </div>
+                </td>
+            </tr>
+        </table>
+        <table class="half">
+            <tr>
+                <td colspan="2" class="cat t_center">TEMPERATURE</td>
+            </tr>
+            <tr>
+                <td>CPU_TEMP</td>
+                <td>HDD_TEMP</td>
+            </tr>
+            <tr>
+                <td>
+                    <canvas id="graph_temp_cpu">
+                    </canvas>
+                    <div id="cpu_temp" class="t_center">
+                    </div>
+                </td>
+                <td>
+                    <canvas id="graph_temp_hdd">
+                    </canvas>
+                    <div id="hdd_temp" class="t_center">
+                    </div>
+                </td>
+            </tr>
+        </table>
+        <table>
+            <tr>
+                <td class="cat t_center">NETWORKS(KBps)</td>
+            </tr>
+            <tr>
+                <td>
+                    RECEIVED
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    <canvas id="graph_net_recv">
+                    </canvas>
+                    <div id="net_recv_kbps" class="t_right">
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    SENT
+                </td>
+            </tr>
+            <tr>
+                <td>                    
+                    <canvas id="graph_net_sent">
+                    </canvas>
+                    <div id="net_sent_kbps" class="t_right">
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+</body>
+<script>
+    let h = 0
+    let m = 0
+    let s = 0
+    var data
+    var values = new Map()
+    var units = {}
+    values.set("graph_usage_cpu",[])
+    values.set("graph_usage_mem",[])
+    values.set("graph_temp_cpu",[])
+    values.set("graph_temp_hdd",[])
+    values.set("graph_net_sent",[])
+    values.set("graph_net_recv",[])
+
+    units["graph_usage_cpu"] = "%"
+    units["graph_usage_mem"] = "MB"
+    units["graph_temp_cpu"] = "℃"
+    units["graph_temp_hdd"] = "℃"
+    units["graph_net_sent"] = "KBps"
+    units["graph_net_recv"] = "KBps"
+    function fectchDatas(){        
+        fetch("http://192.168.0.4:5555")
+        .then(response => {
+            if(response.status == 200){
+                document.getElementById("conn").innerText = "CONNECTED"
+            }
+            else{
+                document.getElementById("conn").innerText = "! DISCONNECTED"
+            }
+            //response.json(): response스트림을 읽어 json데이터를 promise로 반환하는 메서드
+            return response.json();
+        })
+        .then(json => {
+            data = json
+            document.getElementById("cpu_cores").innerText = data.values.cpu_cores            
+            document.getElementById("cpu_per").innerText = data.values.cpu_per + "%"
+            document.getElementById("cpu_temp").innerText = data.values.cpu_temp + "℃"
+            document.getElementById("total_disk").innerText = data.values.total_disk + "GB"
+            document.getElementById("used_disk").innerText = data.values.used_disk + "GB"
+            document.getElementById("hdd_temp").innerText = data.values.hdd_temp + "℃"
+            document.getElementById("total_mem").innerText = data.values.total_mem + "MB"
+            document.getElementById("used_mem").innerText = data.values.used_mem + "MB"
+            document.getElementById("net_recv_kbps").innerText = data.values.net_recv_kbps + "KBps"
+            document.getElementById("net_sent_kbps").innerText = data.values.net_sent_kbps + "KBps"
+            values.get("graph_usage_cpu").push(parseFloat(data.values.cpu_per))
+            values.get("graph_usage_mem").push(parseFloat(data.values.used_mem))
+            values.get("graph_temp_cpu").push(parseFloat(data.values.cpu_temp))
+            values.get("graph_temp_hdd").push(parseFloat(data.values.hdd_temp))
+            values.get("graph_net_recv").push(parseFloat(data.values.net_recv_kbps))
+            values.get("graph_net_sent").push(parseFloat(data.values.net_sent_kbps))
+            drawGraphs()
+        });
+        s++
+        if(s >= 60){
+            s = 0
+            m++
+            if(m >= 60){
+                m = 0
+                h ++
+            }
+        }
+        document.getElementById("time").innerText = (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s
+        setTimeout(fectchDatas, 1000);
+    }
+    fectchDatas()
+    function drawGraphs(){
+        /*
+        graph_net
+        */
+        for(const key of values.keys()){
+            quarterGraph(key)
+        }
+    }
+    function quarterGraph(elId){
+        let heightestVal = getHeightestValue(elId)
+        if(heightestVal == -1) return
+        if(heightestVal > 100) 
+            heightestVal = Math.ceil(heightestVal/100)*100
+        else if(heightestVal >= 10) 
+            heightestVal = Math.ceil(heightestVal/10)*10
+        else
+            heightestVal = Math.ceil(heightestVal)
+        const element = document.getElementById(elId)
+        const cellSize = element.height / 10
+        const valPerCell = (heightestVal / 10).toFixed(2)
+        const ctx = element.getContext("2d")
+        ctx.clearRect(0,0,element.width,element.height)
+        ctx.lineWidth = 1
+        ctx.strokeStyle = "black"
+        ctx.font = "12px Arial";
+        // stroke vertical
+        _i = 0
+        ctx.fillText(`${heightestVal}`, element.width-cellSize*2+6, 12);
+        for(i = element.height - cellSize; i > 0; i -= cellSize){                        
+            ctx.beginPath()
+            ctx.moveTo(0,i)
+            ctx.lineTo(element.width-cellSize*2,i)
+            ctx.stroke()
+            if(_i > 0){                
+            }
+            _i ++
+        }
+        ctx.fillText(`0`, element.width-cellSize*2+6, element.height);
+        // stroke horizon
+        for(i = element.width - cellSize*2 ; i > 0; i -= cellSize){                        
+            ctx.beginPath()
+            ctx.moveTo(i, 0)
+            ctx.lineTo(i, element.height)
+            ctx.stroke()
+        }
+        ctx.beginPath()
+                ctx.arc(
+                    element.width-cellSize*2, 
+                    element.height - element.height * values.get(elId)[values.get(elId).length - 1]/heightestVal, 
+                    2, 
+                    0, 2 * Math.PI)
+                ctx.fill()
+                
+        if(element.width-cellSize-(values.get(elId).length-1)*cellSize < 0)
+            values.get(elId).shift()
+
+        ctx.lineWidth = 2
+        // draw line
+        for(i = values.get(elId).length-1; i > 0 ; i--){
+            ctx.beginPath()
+            let tmpX = element.width-cellSize*2-(i-1)*cellSize
+            let tmpY = element.height - element.height * values.get(elId)[values.get(elId).length - i]/heightestVal
+            ctx.moveTo(tmpX,tmpY)
+            ctx.lineTo(element.width-cellSize*2-i*cellSize,element.height - element.height * values.get(elId)[values.get(elId).length - i - 1]/heightestVal)
+            ctx.stroke()
+        }
+        ctx.lineWidth = 1
+
+        // draw points
+        for(i = values.get(elId).length-1; i > 0 ; i--){
+            let tmpX = element.width-cellSize*2-(i-1)*cellSize
+            let tmpY = element.height - element.height * values.get(elId)[values.get(elId).length - i]/heightestVal
+            if( 
+                values.get(elId)[values.get(elId).length - i] != values.get(elId)[values.get(elId).length - i - 1] 
+            ){
+                ctx.beginPath()
+                ctx.arc(
+                    tmpX,
+                    tmpY, 
+                    3, 
+                    0, 2 * Math.PI)
+                ctx.fill()
+            }
+        }
+
+        // draw values
+        let prevVal = -1
+        for(i = values.get(elId).length-1; i > 0 ; i--){
+            let tmpX = element.width-cellSize*2-(i-1)*cellSize
+            let tmpY = element.height - element.height * values.get(elId)[values.get(elId).length - i]/heightestVal
+            if( 
+                (
+                    // values.get(elId)[values.get(elId).length - i] != values.get(elId)[values.get(elId).length - i - 1] && 
+                    values.get(elId)[values.get(elId).length - i] != prevVal)
+            ){
+                const tmpTxt = `${values.get(elId)[values.get(elId).length - i]}${units[elId]}`
+                ctx.fillStyle = "white"
+                if(tmpY + 14 > element.height) tmpY -= 14
+                ctx.fillRect(
+                    tmpX,
+                    tmpY + 2,
+                    tmpTxt.length * 6, 12);
+                ctx.fillStyle = "black"
+                ctx.fillText(tmpTxt, 
+                    tmpX,
+                    tmpY + 14
+                    );
+                prevVal = values.get(elId)[values.get(elId).length - i]
+            }
+        }
+        // ctx.lineTo(element.width-cellSize*2-i*cellSize,)
+        const tmpVal = `${values.get(elId)[values.get(elId).length - 1]}`
+        const tmpUnit = `${units[elId]}`
+
+        ctx.fillStyle = "white"
+        ctx.fillRect(
+            element.width-cellSize*2,
+            element.height - element.height * values.get(elId)[values.get(elId).length - 1]/heightestVal-4,            
+            cellSize * 2,
+            24
+            )
+        ctx.fillStyle = "black"
+        ctx.fillText(tmpVal, element.width-cellSize*2+6, element.height - element.height * values.get(elId)[values.get(elId).length - 1]/heightestVal + 6);            
+        ctx.fillText(tmpUnit, element.width-cellSize*2+6, element.height - element.height * values.get(elId)[values.get(elId).length - 1]/heightestVal + 18);
+        // for( i = values.get(elId).length; i > breakPoint ; i--){
+        //     values.get(elId).shift()
+        // }
+    }
+    function getHeightestValue(key){
+        const tmpArr = values.get(key)
+        if(tmpArr.length == 0){
+            return -1
+        }
+        let heightest = tmpArr[0]
+        for(const val of tmpArr){
+            if(val > heightest)
+                heightest = val
+        }
+        return heightest
+    }
+    let dpr = window.devicePixelRatio    
+    function initCanvases(){
+        for(const key of values.keys()){
+            initCanvas(key)
+        }
+    }
+    function initCanvas(elId){
+        const element = document.getElementById(elId)
+        const ctx = element.getContext("2d")
+        const canvWidth = element.getBoundingClientRect().width
+        const canvHeight = element.getBoundingClientRect().height
+        element.style.height = canvHeight + "px"
+        element.width = canvWidth * dpr
+        element.height = canvHeight * dpr
+        ctx.scale(dpr,dpr)
+    }
+    initCanvases()
+    window.addEventListener('resize', initCanvases, true);
+</script>
+</html>
